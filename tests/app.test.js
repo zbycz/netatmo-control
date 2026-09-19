@@ -46,8 +46,16 @@ describe('boostEndsAt', () => {
     assert.equal(boostEndsAt(rooms), 2_000_000);
   });
 
+  it('also counts a boost started from the Netatmo app', () => {
+    assert.equal(
+      boostEndsAt([{ therm_setpoint_mode: 'max', therm_setpoint_end_time: 1500 }]),
+      1_500_000
+    );
+  });
+
   it('ignores rooms following the schedule', () => {
     assert.equal(boostEndsAt([{ therm_setpoint_mode: 'home', therm_setpoint_end_time: 9999 }]), null);
+    assert.equal(boostEndsAt([{ therm_setpoint_mode: 'schedule', therm_setpoint_end_time: 9999 }]), null);
     assert.equal(boostEndsAt([{ therm_setpoint_mode: 'manual' }]), null);
     assert.equal(boostEndsAt([]), null);
   });

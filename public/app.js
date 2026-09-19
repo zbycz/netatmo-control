@@ -61,9 +61,11 @@ export function selectedRoomIds(config, rooms) {
   return chosen.length ? chosen : available;
 }
 
+const BOOST_MODES = ['manual', 'max'];
+
 export function boostEndsAt(rooms) {
   const ends = rooms
-    .filter((r) => r.therm_setpoint_mode === 'manual' && r.therm_setpoint_end_time)
+    .filter((r) => BOOST_MODES.includes(r.therm_setpoint_mode) && r.therm_setpoint_end_time)
     .map((r) => r.therm_setpoint_end_time * 1000);
   return ends.length ? Math.max(...ends) : null;
 }
