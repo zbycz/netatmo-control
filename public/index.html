@@ -36,6 +36,14 @@
       <button class="primary" type="submit">Přihlásit se přes Netatmo</button>
     </form>
     <p class="note">Údaje zůstanou jen v tomhle prohlížeči (localStorage), nikam se neposílají kromě Netatmo.</p>
+
+    <details id="import-box">
+      <summary>Vložit konfiguraci jako JSON</summary>
+      <textarea id="import-json" rows="6" spellcheck="false" autocapitalize="none"
+        placeholder='{"client": {"id": "...", "secret": "..."}}'></textarea>
+      <button id="import-btn" class="secondary" type="button">Načíst</button>
+      <p id="import-note" class="note" hidden></p>
+    </details>
   </section>
 
   <section id="view-loading" class="view" hidden>

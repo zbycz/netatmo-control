@@ -4,6 +4,7 @@ import {
   averageTemperature,
   boostEndsAt,
   formatRemaining,
+  parseImport,
   selectedRoomIds,
 } from '../public/app.js';
 
@@ -71,5 +72,43 @@ describe('averageTemperature', () => {
     const rooms = [{ therm_measured_temperature: 20 }, { id: 'offline' }];
     assert.equal(averageTemperature(rooms), 20);
     assert.equal(averageTemperature([{ id: 'offline' }]), null);
+  });
+});
+
+describe('parseImport', () => {
+  it('reads the nested client shape', () => {
+    const r = parseImport('{"client":{"id":"abc","secret":"xyz"}}');
+    assert.deepEqual(r.client, { id: 'abc', secret: 'xyz' });
+    assert.equal(r.tokens, undefined);
+    assert.equal(r.config, undefined);
+  });
+
+  it('also accepts flat OAuth field names', () => {
+    const r = parseImport('{"client_id":"abc","client_secret":"xyz"}');
+    assert.deepEqual(r.client, { id: 'abc', secret: 'xyz' });
+  });
+
+  it('trims stray whitespace from pasted values', () => {
+    const r = parseImport('{"client":{"id":"  abc  ","secret":"\\txyz\\n"}}');
+    assert.deepEqual(r.client, { id: 'abc', secret: 'xyz' });
+  });
+
+  it('carries optional config, clamping the boost temperature', () => {
+    assert.equal(parseImport('{"client_id":"a","client_secret":"b","config":{"boostTemp":26}}').config.boostTemp, 26);
+    assert.equal(parseImport('{"client_id":"a","client_secret":"b","config":{"boostTemp":99}}').config.boostTemp, 30);
+    assert.equal(parseImport('{"client_id":"a","client_secret":"b","config":{"boostTemp":1}}').config.boostTemp, 7);
+  });
+
+  it('carries tokens only when both are present', () => {
+    const full = parseImport('{"client_id":"a","client_secret":"b","tokens":{"accessToken":"at","refreshToken":"rt","expiresAt":123}}');
+    assert.deepEqual(full.tokens, { accessToken: 'at', refreshToken: 'rt', expiresAt: 123 });
+    const partial = parseImport('{"client_id":"a","client_secret":"b","tokens":{"accessToken":"at"}}');
+    assert.equal(partial.tokens, undefined);
+  });
+
+  it('rejects junk with a readable message', () => {
+    assert.throws(() => parseImport('nope'), /platný JSON/);
+    assert.throws(() => parseImport('{}'), /client id nebo client secret/);
+    assert.throws(() => parseImport('{"client":{"id":"a"}}'), /client id nebo client secret/);
   });
 });

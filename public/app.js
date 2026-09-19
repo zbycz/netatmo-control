@@ -55,6 +55,39 @@ export function formatRemaining(ms) {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
+export function parseImport(text) {
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error('Tohle není platný JSON.');
+  }
+  if (!data || typeof data !== 'object') throw new Error('Tohle není platný JSON.');
+
+  const source = data.client ?? data;
+  const id = String(source.id ?? source.client_id ?? '').trim();
+  const secret = String(source.secret ?? source.client_secret ?? '').trim();
+  if (!id || !secret) throw new Error('V JSONu chybí client id nebo client secret.');
+
+  const result = { client: { id, secret } };
+
+  const temp = Number(data.config?.boostTemp);
+  if (Number.isFinite(temp)) {
+    result.config = { boostTemp: Math.min(30, Math.max(7, temp)) };
+    if (Array.isArray(data.config.roomIds)) result.config.roomIds = data.config.roomIds.map(String);
+  }
+
+  const tokens = data.tokens;
+  if (tokens?.accessToken && tokens?.refreshToken) {
+    result.tokens = {
+      accessToken: String(tokens.accessToken),
+      refreshToken: String(tokens.refreshToken),
+      expiresAt: Number(tokens.expiresAt) || Date.now(),
+    };
+  }
+  return result;
+}
+
 export function selectedRoomIds(config, rooms) {
   const available = rooms.map((r) => r.id);
   const chosen = (config.roomIds ?? []).filter((id) => available.includes(id));
@@ -275,6 +308,35 @@ function showSetup(message = '') {
   note.hidden = !message;
 }
 
+async function applyImport() {
+  const note = el('import-note');
+  note.hidden = false;
+  note.className = 'note error';
+
+  let parsed;
+  try {
+    parsed = parseImport(el('import-json').value);
+  } catch (error) {
+    note.textContent = error.message;
+    return;
+  }
+
+  store.setClient(parsed.client);
+  if (parsed.config) store.setConfig(parsed.config);
+  el('client-id').value = parsed.client.id;
+  el('client-secret').value = parsed.client.secret;
+  el('import-json').value = '';
+
+  if (parsed.tokens) {
+    store.setTokens(parsed.tokens);
+    await startApp();
+    return;
+  }
+
+  note.className = 'note ok';
+  note.textContent = 'Načteno. Teď klepni na Přihlásit se přes Netatmo.';
+}
+
 function startLogin(event) {
   event.preventDefault();
   const id = el('client-id').value.trim();
@@ -354,6 +416,7 @@ async function handleRedirect(params) {
 
 function bindEvents() {
   el('setup-form').addEventListener('submit', startLogin);
+  el('import-btn').addEventListener('click', applyImport);
   document.querySelectorAll('.boost').forEach((button) => {
     button.addEventListener('click', () => boost(Number(button.dataset.minutes)));
   });

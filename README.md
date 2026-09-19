@@ -21,6 +21,22 @@ vlastní Netatmo aplikaci:
 Client ID, secret i tokeny zůstávají v `localStorage` daného prohlížeče. V repu nejsou
 a nikam jinam se neposílají.
 
+### Rychlejší cesta: vložit konfiguraci jako JSON
+
+Na úvodní obrazovce je rozbalovací *Vložit konfiguraci jako JSON* — užitečné, když
+aplikaci nastavuješ na druhém zařízení a nechce se ti přeťukávat secret:
+
+```json
+{
+  "client": { "id": "...", "secret": "..." },
+  "config": { "boostTemp": 24 }
+}
+```
+
+Přijímá i plochý tvar `{"client_id": "...", "client_secret": "..."}`. Volitelný blok
+`tokens` (`accessToken`, `refreshToken`, `expiresAt`) přeskočí přihlášení a pustí
+aplikaci rovnou.
+
 ## Deploy
 
 Push do `main` → workflow [`deploy.yml`](.github/workflows/deploy.yml) pustí testy
