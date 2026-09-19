@@ -12,6 +12,8 @@
 
 * { box-sizing: border-box; }
 
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   min-height: 100%;
@@ -52,8 +54,6 @@ html, body {
 }
 
 .icon-btn:hover { color: var(--text); }
-
-.view[hidden] { display: none; }
 
 .lead { color: var(--muted); line-height: 1.5; margin-top: 0; }
 .note { color: var(--muted); font-size: 13px; line-height: 1.5; }
