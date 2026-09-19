@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f36f21">
+<title>Topení</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Topení">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main id="app">
+  <header class="topbar">
+    <h1>Topení</h1>
+    <button id="settings-btn" class="icon-btn" type="button" aria-label="Nastavení" hidden>&#9881;</button>
+  </header>
+
+  <section id="view-setup" class="view" hidden>
+    <p class="lead">Aplikace potřebuje vlastní Netatmo aplikaci. Vytvoř ji na
+      <a href="https://dev.netatmo.com/apps/createanapp" target="_blank" rel="noopener">dev.netatmo.com</a>
+      a jako <em>redirect URI</em> nastav přesně:</p>
+    <p class="redirect-uri"><code id="redirect-uri"></code></p>
+    <p id="setup-note" class="note error" hidden></p>
+    <form id="setup-form" autocomplete="off">
+      <label>Client ID
+        <input id="client-id" type="text" required spellcheck="false" autocapitalize="none">
+      </label>
+      <label>Client secret
+        <input id="client-secret" type="password" required spellcheck="false" autocapitalize="none">
+      </label>
+      <button class="primary" type="submit">Přihlásit se přes Netatmo</button>
+    </form>
+    <p class="note">Údaje zůstanou jen v tomhle prohlížeči (localStorage), nikam se neposílají kromě Netatmo.</p>
+  </section>
+
+  <section id="view-loading" class="view" hidden>
+    <div class="spinner" role="status" aria-label="Načítám"></div>
+    <p id="loading-text" class="muted">Načítám…</p>
+  </section>
+
+  <section id="view-main" class="view" hidden>
+    <div id="status" class="status">
+      <div class="status-room" id="status-room"></div>
+      <div class="status-temp"><span id="status-temp">–</span><span class="deg">°C</span></div>
+      <div class="status-sub" id="status-sub"></div>
+    </div>
+    <div class="boosts">
+      <button class="boost" type="button" data-minutes="5"><span class="num">5</span><span class="unit">min</span></button>
+      <button class="boost" type="button" data-minutes="10"><span class="num">10</span><span class="unit">min</span></button>
+      <button class="boost" type="button" data-minutes="15"><span class="num">15</span><span class="unit">min</span></button>
+    </div>
+    <button id="cancel-btn" class="secondary" type="button" hidden>Zpět na program</button>
+    <p id="message" class="message" role="status" aria-live="polite"></p>
+  </section>
+
+  <section id="view-settings" class="view" hidden>
+    <h2>Nastavení</h2>
+    <label>Teplota při zatopení
+      <input id="boost-temp" type="number" min="7" max="30" step="0.5">
+    </label>
+    <fieldset id="rooms-fieldset">
+      <legend>Místnosti</legend>
+      <div id="rooms-list"></div>
+    </fieldset>
+    <div class="settings-actions">
+      <button id="settings-done" class="primary" type="button">Hotovo</button>
+      <button id="logout-btn" class="danger" type="button">Odhlásit se</button>
+    </div>
+    <p class="note" id="home-note"></p>
+  </section>
+</main>
+<script src="app.js" type="module"></script>
+</body>
+</html>
