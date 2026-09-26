@@ -252,6 +252,28 @@ textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .legend-band { color: var(--accent); }
 
+.chart-range {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin: 4px 0 6px;
+}
+
+.chart-range button {
+  background: none;
+  border: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.chart-range button.active {
+  background: var(--surface-hi);
+  color: var(--text);
+}
+
 .chart {
   display: block;
   width: 100%;

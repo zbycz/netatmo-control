@@ -23,6 +23,7 @@ const views = ['setup', 'loading', 'main', 'settings'];
 let home = null;
 let status = null;
 let chartPoints = [];
+let chartHours = 6;
 let pollTimer = null;
 let tickTimer = null;
 
@@ -276,7 +277,12 @@ function renderChart() {
   const config = store.getConfig();
   const periods = heatingPeriods(chartPoints, config.boostTemp);
   const node = el('chart');
-  node.replaceChildren(renderTemperatureChart(chartPoints, periods));
+  node.replaceChildren(renderTemperatureChart(chartPoints, periods, Date.now(), chartHours));
+  document.querySelectorAll('.chart-range button').forEach((button) => {
+    const active = Number(button.dataset.hours) === chartHours;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
 }
 
 async function loadHistory() {
@@ -525,6 +531,13 @@ function bindEvents() {
     button.addEventListener('click', () => boost(Number(button.dataset.minutes)));
   });
   el('cancel-btn').addEventListener('click', cancelBoost);
+  document.querySelectorAll('.chart-range button').forEach((button) => {
+    button.addEventListener('click', () => {
+      chartHours = Number(button.dataset.hours);
+      store.setConfig({ chartHours });
+      renderChart();
+    });
+  });
   el('settings-btn').addEventListener('click', () => {
     renderSettings();
     showView('settings');
@@ -545,6 +558,7 @@ function bindEvents() {
 }
 
 async function main() {
+  chartHours = Number(store.getConfig().chartHours) || 6;
   bindEvents();
 
   const params = new URLSearchParams(window.location.search);
