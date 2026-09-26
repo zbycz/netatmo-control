@@ -120,6 +120,34 @@ export function heatingRooms(home) {
   return (home.rooms ?? []).filter((r) => heatingRoomIds.has(r.id));
 }
 
+export function heatingModules(home) {
+  return (home.modules ?? []).filter((m) => HEATING_MODULE_TYPES.includes(m.type));
+}
+
+export function measureTarget(module) {
+  return module.bridge
+    ? { deviceId: module.bridge, moduleId: module.id }
+    : { deviceId: module.id };
+}
+
+export async function getMeasure(
+  accessToken,
+  { deviceId, moduleId, type, scale, dateBegin, dateEnd, optimize = false, realTime = true }
+) {
+  const body = {
+    device_id: deviceId,
+    type,
+    scale,
+    date_begin: String(dateBegin),
+    date_end: String(dateEnd),
+  };
+  if (moduleId) body.module_id = moduleId;
+  if (optimize) body.optimize = 'true';
+  if (realTime) body.real_time = 'true';
+  const payload = await call('/api/getmeasure', accessToken, body);
+  return payload.body ?? [];
+}
+
 export function homesWithHeating(homes) {
   return homes.filter((home) => heatingRooms(home).length > 0);
 }

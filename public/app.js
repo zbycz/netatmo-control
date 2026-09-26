@@ -2,18 +2,24 @@ import {
   NetatmoError,
   authorizeUrl,
   exchangeCode,
+  getMeasure,
+  heatingModules,
   heatingRooms,
   homeStatus,
   homesData,
   homesWithHeating,
+  measureTarget,
   refreshTokens,
   setRoomThermPoint,
 } from './netatmo.js';
+import { chartSvg, heatingBands, measurePoints } from './chart.js';
 import * as store from './store.js';
 
 const REFRESH_MARGIN_MS = 60_000;
 const POLL_IDLE_MS = 60_000;
 const POLL_ACTIVE_MS = 15_000;
+const CHART_HOURS = 24;
+const CHART_REFRESH_MS = 5 * 60_000;
 
 const el = (id) => document.getElementById(id);
 const views = ['setup', 'loading', 'main', 'settings'];
@@ -22,6 +28,7 @@ let home = null;
 let status = null;
 let pollTimer = null;
 let tickTimer = null;
+let lastChartAt = 0;
 
 export function redirectUri() {
   const url = new URL(window.location.href);
@@ -186,6 +193,46 @@ function scheduleTick() {
   tickTimer = setInterval(renderBoostState, 1000);
 }
 
+function chartTarget() {
+  const chosen = new Set(selectedRoomIds(store.getConfig(), heatingRooms(home)));
+  return heatingModules(home).find((m) => chosen.has(m.room_id)) ?? null;
+}
+
+function renderChart(tempBody, boilerBody) {
+  const to = Math.floor(Date.now() / 1000);
+  const from = to - CHART_HOURS * 3600;
+  const points = measurePoints(tempBody);
+  const bands = heatingBands(boilerBody);
+
+  el('chart').innerHTML = chartSvg({ points, bands, from, to });
+  el('chart-empty').hidden = points.length > 0;
+  el('chart').hidden = points.length === 0;
+  const room = heatingRooms(home).find((r) => r.id === chartTarget()?.room_id);
+  el('chart-room').textContent = room ? room.name : '';
+}
+
+async function loadChart() {
+  const module = chartTarget();
+  if (!module) return;
+
+  const to = Math.floor(Date.now() / 1000);
+  const from = to - CHART_HOURS * 3600;
+  const target = measureTarget(module);
+
+  try {
+    const [tempBody, boilerBody] = await withToken((token) =>
+      Promise.all([
+        getMeasure(token, { ...target, type: 'temperature', scale: 'max', dateBegin: from, dateEnd: to }),
+        getMeasure(token, { ...target, type: 'sum_boiler_on', scale: '30min', dateBegin: from, dateEnd: to }),
+      ])
+    );
+    renderChart(tempBody, boilerBody);
+  } catch {
+    el('chart').hidden = true;
+    el('chart-empty').hidden = false;
+  }
+}
+
 function schedulePoll() {
   clearTimeout(pollTimer);
   const endsAt = boostEndsAt(statusRooms());
@@ -197,6 +244,10 @@ async function loadStatus() {
   try {
     status = await withToken((token) => homeStatus(token, home.id));
     renderStatus();
+    if (Date.now() - lastChartAt > CHART_REFRESH_MS) {
+      lastChartAt = Date.now();
+      loadChart();
+    }
   } catch (error) {
     reportError(error);
   } finally {
@@ -365,6 +416,8 @@ async function startApp() {
     status = await withToken((token) => homeStatus(token, home.id));
     showView('main');
     renderStatus();
+    lastChartAt = Date.now();
+    loadChart();
     scheduleTick();
     schedulePoll();
   } catch (error) {

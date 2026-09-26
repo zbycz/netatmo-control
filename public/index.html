@@ -57,6 +57,15 @@
       <div class="status-temp"><span id="status-temp">–</span><span class="deg">°C</span></div>
       <div class="status-sub" id="status-sub"></div>
     </div>
+    <section class="chart-card" aria-label="Teplota za posledních 24 hodin">
+      <div class="chart-head">
+        <span class="chart-title">Posledních 24 hodin</span>
+        <span class="chart-room" id="chart-room"></span>
+      </div>
+      <div id="chart" class="chart"></div>
+      <p id="chart-empty" class="note" hidden>Pro graf zatím nejsou data.</p>
+      <div class="chart-legend"><span class="swatch"></span> topení</div>
+    </section>
     <div class="boosts">
       <button class="boost" type="button" data-minutes="5"><span class="num">5</span><span class="unit">min</span></button>
       <button class="boost" type="button" data-minutes="10"><span class="num">10</span><span class="unit">min</span></button>

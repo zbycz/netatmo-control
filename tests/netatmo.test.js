@@ -4,8 +4,11 @@ import {
   NetatmoError,
   authorizeUrl,
   exchangeCode,
+  getMeasure,
+  heatingModules,
   heatingRooms,
   homesWithHeating,
+  measureTarget,
   refreshTokens,
   setRoomThermPoint,
 } from '../public/netatmo.js';
@@ -150,5 +153,54 @@ describe('heatingRooms', () => {
   it('drops homes without any heating hardware', () => {
     const weatherOnly = { id: 'h2', rooms: [{ id: 'x' }], modules: [{ type: 'NAMain', room_id: 'x' }] };
     assert.deepEqual(homesWithHeating([home, weatherOnly]).map((h) => h.id), ['h1']);
+  });
+
+  it('keeps only heating modules', () => {
+    assert.deepEqual(heatingModules(home).map((m) => m.id), ['m1', 'm2']);
+  });
+});
+
+describe('measureTarget', () => {
+  it('addresses bridged modules through their bridge', () => {
+    assert.deepEqual(measureTarget({ id: 'mod', bridge: 'plug' }), {
+      deviceId: 'plug',
+      moduleId: 'mod',
+    });
+  });
+
+  it('uses the module itself when it has no bridge', () => {
+    assert.deepEqual(measureTarget({ id: 'plug' }), { deviceId: 'plug' });
+  });
+});
+
+describe('getMeasure', () => {
+  it('posts the measure query and returns the series body', async () => {
+    const calls = mockFetch({ payload: { body: [{ beg_time: 1, step_time: 600, value: [[20]] }] } });
+    const body = await getMeasure('token', {
+      deviceId: 'plug',
+      moduleId: 'mod',
+      type: 'temperature',
+      scale: 'max',
+      dateBegin: 100,
+      dateEnd: 200,
+    });
+
+    assert.equal(calls[0].url, 'https://api.netatmo.com/api/getmeasure');
+    assert.equal(calls[0].body.get('device_id'), 'plug');
+    assert.equal(calls[0].body.get('module_id'), 'mod');
+    assert.equal(calls[0].body.get('type'), 'temperature');
+    assert.equal(calls[0].body.get('scale'), 'max');
+    assert.equal(calls[0].body.get('date_begin'), '100');
+    assert.equal(calls[0].body.get('date_end'), '200');
+    assert.deepEqual(body, [{ beg_time: 1, step_time: 600, value: [[20]] }]);
+  });
+
+  it('omits module_id and optional flags when not given', async () => {
+    const calls = mockFetch({ payload: { body: [] } });
+    await getMeasure('token', { deviceId: 'plug', type: 'boiler_on', scale: '30min', dateBegin: 1, dateEnd: 2 });
+    assert.equal(calls[0].body.get('module_id'), null);
+    assert.equal(calls[0].body.get('optimize'), null);
+    assert.equal(calls[0].body.get('real_time'), 'true');
+    assert.deepEqual(await getMeasure('t', { deviceId: 'd', type: 'x', scale: 'y', dateBegin: 1, dateEnd: 2 }), []);
   });
 });

@@ -142,6 +142,45 @@ button:disabled { opacity: 0.5; cursor: default; }
   gap: 12px;
 }
 
+.chart-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 14px 12px 10px;
+  margin-bottom: 20px;
+}
+
+.chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0 6px 8px;
+}
+
+.chart-title { font-size: 14px; font-weight: 600; }
+.chart-room { font-size: 13px; color: var(--muted); }
+
+.chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 6px 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.chart-legend .swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: rgba(243, 111, 33, 0.25);
+}
+
 .boost {
   display: flex;
   flex-direction: column;
