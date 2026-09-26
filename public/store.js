@@ -5,7 +5,7 @@ const KEYS = {
   state: 'netatmo.oauthState',
 };
 
-const DEFAULT_CONFIG = { homeId: null, roomIds: [], boostTemp: 24 };
+const DEFAULT_CONFIG = { homeId: null, roomIds: [], boostTemp: 24, chartHours: 6 };
 
 function read(key, fallback) {
   try {

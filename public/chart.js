@@ -3,6 +3,7 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const W = 320;
 const H = 140;
 const PAD = { top: 12, right: 8, bottom: 18, left: 30 };
+const HOUR_MS = 3600_000;
 
 function el(name, attrs = {}) {
   const node = document.createElementNS(SVG_NS, name);
@@ -13,27 +14,42 @@ function el(name, attrs = {}) {
 const fmtTime = (ts) =>
   new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+export function chartWindow(hours = 6, now = Date.now()) {
+  const from = now - hours * HOUR_MS;
+  return {
+    from,
+    to: now,
+    ticks: [
+      [from, `-${hours} h`],
+      [from + (hours / 2) * HOUR_MS, `-${hours / 2} h`],
+      [now, 'now'],
+    ],
+  };
+}
+
 /**
- * Renders the last 24 h of room temperature with heating periods
+ * Renders the last `hours` h of room temperature with heating periods
  * highlighted under the curve. Returns an <svg> node.
  *
  * points: [{ time: ms, temp: °C, setpoint: °C }]
  * heating: [{ start: ms, end: ms }]
  */
-export function renderTemperatureChart(points, heating = [], now = Date.now()) {
+export function renderTemperatureChart(points, heating = [], now = Date.now(), hours = 6) {
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
+  const { from: t0, ticks } = chartWindow(hours, now);
 
   const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart', role: 'img' });
 
-  const clean = points.filter((p) => typeof p.temp === 'number');
+  const clean = points.filter(
+    (p) => p.time >= t0 && p.time <= now && typeof p.temp === 'number'
+  );
   if (clean.length < 2) {
     svg.appendChild(el('text', { x: W / 2, y: H / 2, 'text-anchor': 'middle', class: 'chart-empty' }))
       .textContent = 'Bez dat';
     return svg;
   }
 
-  const t0 = now - 24 * 3600_000;
   const temps = clean.flatMap((p) => [p.temp, p.setpoint].filter((v) => typeof v === 'number'));
   const min = Math.floor(Math.min(...temps) - 0.5);
   const max = Math.max(Math.ceil(Math.max(...temps) + 0.5), min + 2);
@@ -90,12 +106,8 @@ export function renderTemperatureChart(points, heating = [], now = Date.now()) {
     svg.appendChild(label);
   });
 
-  // X axis labels: -24 h, -12 h, now
-  [
-    [t0, '-24 h'],
-    [t0 + 12 * 3600_000, '-12 h'],
-    [now, 'now'],
-  ].forEach(([time, label]) => {
+  // X axis labels: window start, midpoint, now
+  ticks.forEach(([time, label]) => {
     const node = el('text', { x: x(time).toFixed(1), y: H - 4, 'text-anchor': 'middle', class: 'chart-label' });
     node.textContent = label;
     svg.appendChild(node);
