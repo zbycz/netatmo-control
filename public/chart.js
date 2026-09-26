@@ -45,12 +45,13 @@ export function renderTemperatureChart(points, heating = [], now = Date.now()) {
   heating.forEach(({ start, end }) => {
     const from = Math.max(start, t0);
     const to = Math.min(end, now);
-    if (to <= from) return;
+    const width = Math.max(x(to) - x(from), 3);
+    if (to < from) return;
     svg.appendChild(
       el('rect', {
         x: x(from).toFixed(1),
         y: (PAD.top + innerH - 4).toFixed(1),
-        width: (x(to) - x(from)).toFixed(1),
+        width: width.toFixed(1),
         height: 4,
         class: 'chart-band',
       })
