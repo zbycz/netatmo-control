@@ -4,6 +4,8 @@ import {
   averageTemperature,
   boostEndsAt,
   formatRemaining,
+  heatingPeriods,
+  historyFromMeasure,
   parseImport,
   selectedRoomIds,
 } from '../public/app.js';
@@ -72,6 +74,53 @@ describe('averageTemperature', () => {
     const rooms = [{ therm_measured_temperature: 20 }, { id: 'offline' }];
     assert.equal(averageTemperature(rooms), 20);
     assert.equal(averageTemperature([{ id: 'offline' }]), null);
+  });
+});
+
+describe('historyFromMeasure', () => {
+  it('converts the getroommeasure body to sorted points', () => {
+    const body = { 1790315534: [20.4, 18], 1790313734: [20.5, 18] };
+    assert.deepEqual(historyFromMeasure(body), [
+      { time: 1_790_313_734_000, temp: 20.5, setpoint: 18 },
+      { time: 1_790_315_534_000, temp: 20.4, setpoint: 18 },
+    ]);
+  });
+});
+
+describe('heatingPeriods', () => {
+  const STEP = 30 * 60 * 1000;
+  const t0 = 1_000_000_000_000;
+  const point = (i, temp, setpoint) => ({ time: t0 + i * STEP, temp, setpoint });
+
+  it('marks a period where the setpoint matches the boost temperature', () => {
+    const points = [
+      point(0, 20, 18),
+      point(1, 21, 24),
+      point(2, 23, 24),
+      point(3, 22, 18),
+    ];
+    assert.deepEqual(heatingPeriods(points, 24), [
+      { start: t0 + STEP / 2, end: t0 + 2.5 * STEP },
+    ]);
+  });
+
+  it('merges consecutive hot samples into one period', () => {
+    const points = [point(0, 20, 18), point(1, 21, 24), point(2, 23, 24), point(3, 22, 24)];
+    assert.deepEqual(heatingPeriods(points, 24), [
+      { start: t0 + STEP / 2, end: t0 + 3.5 * STEP },
+    ]);
+  });
+
+  it('tolerates a slightly lower setpoint while heating', () => {
+    const points = [point(0, 20, 18), point(1, 21, 23.7), point(2, 22, 18)];
+    assert.deepEqual(heatingPeriods(points, 24), [
+      { start: t0 + STEP / 2, end: t0 + 1.5 * STEP },
+    ]);
+  });
+
+  it('returns nothing when the setpoint never rises', () => {
+    const points = [point(0, 20, 18), point(1, 20, 18)];
+    assert.deepEqual(heatingPeriods(points, 24), []);
   });
 });
 

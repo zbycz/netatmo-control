@@ -235,3 +235,51 @@ textarea {
 textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 #import-note.ok { color: var(--accent); }
+
+.chart-wrap {
+  margin-top: 20px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 16px 12px 8px;
+}
+
+.chart-legend {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  margin: 6px 0 4px;
+}
+
+.legend-band { color: var(--accent); }
+
+.chart {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+}
+
+.chart .chart-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart .chart-setpoint {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+}
+
+.chart .chart-band { fill: var(--accent); opacity: 0.75; }
+.chart .chart-dot { fill: var(--text); }
+
+.chart .chart-label {
+  fill: var(--muted);
+  font-size: 9px;
+  font-family: inherit;
+}
+
+.chart .chart-empty { fill: var(--muted); font-size: 12px; }

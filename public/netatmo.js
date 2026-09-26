@@ -3,6 +3,8 @@ const API = 'https://api.netatmo.com';
 export const SCOPE = 'read_thermostat write_thermostat';
 export const HEATING_MODULE_TYPES = ['NATherm1', 'NRV'];
 
+export const MEASURE_TYPES = 'temperature,sp_temperature';
+
 export class NetatmoError extends Error {
   constructor(message, { status = 0, code = 0 } = {}) {
     super(message);
@@ -102,6 +104,22 @@ export async function homesData(accessToken) {
 export async function homeStatus(accessToken, homeId) {
   const payload = await call('/api/homestatus', accessToken, { home_id: homeId });
   return payload.body?.home ?? { rooms: [], modules: [] };
+}
+
+export async function getRoomMeasure(accessToken, { homeId, roomId, scale = '30min', begin, end }) {
+  const payload = await call(
+    '/api/getroommeasure',
+    accessToken,
+    {
+      home_id: homeId,
+      room_id: roomId,
+      scale,
+      type: MEASURE_TYPES,
+      date_begin: Math.floor(begin / 1000),
+      date_end: Math.floor(end / 1000),
+    }
+  );
+  return payload.body ?? {};
 }
 
 export function setRoomThermPoint(accessToken, { homeId, roomId, mode, temp, endtime }) {
