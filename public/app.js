@@ -2,6 +2,7 @@ import {
   NetatmoError,
   authorizeUrl,
   exchangeCode,
+  getRoomMeasure,
   heatingRooms,
   homeStatus,
   homesData,
@@ -9,6 +10,7 @@ import {
   refreshTokens,
   setRoomThermPoint,
 } from './netatmo.js';
+import { renderTemperatureChart } from './chart.js';
 import * as store from './store.js';
 
 const REFRESH_MARGIN_MS = 60_000;
@@ -20,6 +22,7 @@ const views = ['setup', 'loading', 'main', 'settings'];
 
 let home = null;
 let status = null;
+let chartPoints = [];
 let pollTimer = null;
 let tickTimer = null;
 
@@ -197,11 +200,103 @@ async function loadStatus() {
   try {
     status = await withToken((token) => homeStatus(token, home.id));
     renderStatus();
+    loadHistory().catch((e) => console.warn('chart', e));
   } catch (error) {
     reportError(error);
   } finally {
     schedulePoll();
   }
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function historyFromMeasure(body) {
+  if (Array.isArray(body)) {
+    const series = body[0] ?? {};
+    const step = (series.step_time ?? 1800) * 1000;
+    return (series.value ?? []).map((values, i) => ({
+      time: series.beg_time * 1000 + i * step,
+      temp: values[0],
+      setpoint: values[1],
+    }));
+  }
+  return Object.entries(body)
+    .map(([seconds, values]) => ({
+      time: Number(seconds) * 1000,
+      temp: values[0],
+      setpoint: values[1],
+    }))
+    .sort((a, b) => a.time - b.time);
+}
+
+export function heatingPeriods(points, boostTemp) {
+  const periods = [];
+  const STEP = 30 * 60 * 1000;
+  let start = null;
+  let last = null;
+  let baseline = null;
+
+  const startPeriod = (time) => {
+    if (start == null) {
+      start = time - STEP / 2;
+      last = time;
+    } else {
+      last = time;
+    }
+  };
+  const endPeriod = () => {
+    if (start != null) {
+      periods.push({ start, end: last + STEP / 2 });
+      start = null;
+    }
+  };
+
+  points.forEach((p) => {
+    if (p.setpoint == null) return;
+    const boosted = p.setpoint >= boostTemp - 0.5;
+    const risen = baseline != null && p.setpoint >= baseline + 1;
+    if (boosted || risen) startPeriod(p.time);
+    else endPeriod();
+    if (start == null) baseline = p.setpoint;
+  });
+  endPeriod();
+
+  return periods;
+}
+
+function renderChart() {
+  const config = store.getConfig();
+  const periods = heatingPeriods(chartPoints, config.boostTemp);
+  const node = el('chart');
+  node.replaceChildren(renderTemperatureChart(chartPoints, periods));
+}
+
+async function loadHistory() {
+  const rooms = selectedRoomIds(store.getConfig(), heatingRooms(home));
+  const end = Date.now();
+  const begin = end - DAY_MS;
+
+  const results = await Promise.all(
+    rooms.map((roomId) =>
+      withToken((token) => getRoomMeasure(token, { homeId: home.id, roomId, begin, end }))
+    )
+  );
+
+  const merged = new Map();
+  results.forEach((body) => {
+    historyFromMeasure(body ?? {}).forEach((point) => {
+      const prev = merged.get(point.time);
+      if (prev) {
+        if (typeof point.temp === 'number') prev.temp = point.temp;
+        if (typeof point.setpoint === 'number') prev.setpoint = point.setpoint;
+      } else {
+        merged.set(point.time, { ...point });
+      }
+    });
+  });
+
+  chartPoints = Array.from(merged.values()).sort((a, b) => a.time - b.time);
+  renderChart();
 }
 
 function reportError(error) {
@@ -367,6 +462,7 @@ async function startApp() {
     renderStatus();
     scheduleTick();
     schedulePoll();
+    loadHistory().catch((e) => console.warn('chart', e));
   } catch (error) {
     if (error instanceof NetatmoError && error.isAuthError) {
       store.clearSession();
