@@ -45,27 +45,30 @@ export function renderTemperatureChart(points, heating = [], now = Date.now()) {
   heating.forEach(({ start, end }) => {
     const from = Math.max(start, t0);
     const to = Math.min(end, now);
-    if (to <= from) return;
+    const width = Math.max(x(to) - x(from), 3);
+    if (to < from) return;
     svg.appendChild(
       el('rect', {
         x: x(from).toFixed(1),
         y: (PAD.top + innerH - 4).toFixed(1),
-        width: (x(to) - x(from)).toFixed(1),
+        width: width.toFixed(1),
         height: 4,
         class: 'chart-band',
       })
     );
   });
 
-  // Setpoint (program) line
+  // Setpoint (program) steps — horizontal segments, no interpolation
   const setpoints = clean.filter((p) => typeof p.setpoint === 'number');
   if (setpoints.length > 1) {
-    svg.appendChild(
-      el('path', {
-        d: setpoints.map((p, i) => `${i ? 'L' : 'M'}${x(p.time).toFixed(1)},${y(p.setpoint).toFixed(1)}`).join(''),
-        class: 'chart-setpoint',
-      })
-    );
+    let d = `M${x(setpoints[0].time).toFixed(1)},${y(setpoints[0].setpoint).toFixed(1)}`;
+    for (let i = 1; i < setpoints.length; i++) {
+      const px = x(setpoints[i - 1].time).toFixed(1);
+      const nx = x(setpoints[i].time).toFixed(1);
+      const ny = y(setpoints[i].setpoint).toFixed(1);
+      d += `L${nx},${y(setpoints[i - 1].setpoint).toFixed(1)}L${nx},${ny}`;
+    }
+    svg.appendChild(el('path', { d, class: 'chart-setpoint' }));
   }
 
   // Temperature line
@@ -102,5 +105,5 @@ export function renderTemperatureChart(points, heating = [], now = Date.now()) {
 }
 
 export function formatChartHint() {
-  return `Čára: teplota · Přerušovaná: program · Oranžové: topení (${fmtTime(Date.now())})`;
+  return `Čára: teplota · Schodová: program · Oranžové: topení (${fmtTime(Date.now())})`;
 }

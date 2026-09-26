@@ -211,57 +211,65 @@ async function loadStatus() {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function historyFromMeasure(body) {
-  if (Array.isArray(body)) {
-    const series = body[0] ?? {};
-    const step = (series.step_time ?? 1800) * 1000;
-    return (series.value ?? []).map((values, i) => ({
-      time: series.beg_time * 1000 + i * step,
-      temp: values[0],
-      setpoint: values[1],
-    }));
-  }
-  return Object.entries(body)
-    .map(([seconds, values]) => ({
-      time: Number(seconds) * 1000,
-      temp: values[0],
-      setpoint: values[1],
-    }))
-    .sort((a, b) => a.time - b.time);
+  const chunks = Array.isArray(body) ? body : [];
+  const points = [];
+
+  chunks.forEach((series) => {
+    const step = (series.step_time ?? 600) * 1000;
+    (series.value ?? []).forEach((values, i) => {
+      const time = series.beg_time * 1000 + i * step;
+      const temp = values[0];
+      const setpoint = values[1];
+      const prev = points[points.length - 1];
+      if (prev && prev.time === time) {
+        if (typeof temp === 'number') prev.temp = temp;
+        if (typeof setpoint === 'number') prev.setpoint = setpoint;
+      } else {
+        points.push({ time, temp, setpoint });
+      }
+    });
+  });
+
+  return points;
 }
 
 export function heatingPeriods(points, boostTemp) {
   const periods = [];
-  const STEP = 30 * 60 * 1000;
+  const GAP_MS = 30 * 60 * 1000;
   let start = null;
   let last = null;
-  let baseline = null;
 
   const startPeriod = (time) => {
-    if (start == null) {
-      start = time - STEP / 2;
-      last = time;
-    } else {
-      last = time;
-    }
+    if (start == null) start = time;
+    last = time;
   };
   const endPeriod = () => {
     if (start != null) {
-      periods.push({ start, end: last + STEP / 2 });
+      periods.push({ start, end: last });
       start = null;
     }
   };
 
   points.forEach((p) => {
     if (p.setpoint == null) return;
-    const boosted = p.setpoint >= boostTemp - 0.5;
-    const risen = baseline != null && p.setpoint >= baseline + 1;
-    if (boosted || risen) startPeriod(p.time);
-    else endPeriod();
-    if (start == null) baseline = p.setpoint;
+    if (p.setpoint >= boostTemp - 0.5) {
+      startPeriod(p.time);
+    } else {
+      endPeriod();
+    }
   });
   endPeriod();
 
-  return periods;
+  // Merge consecutive periods closer than the data gap (a single boost
+  // may be split across API chunks).
+  const merged = [];
+  periods.forEach((period) => {
+    const prev = merged[merged.length - 1];
+    if (prev && period.start - prev.end < GAP_MS) prev.end = period.end;
+    else merged.push({ ...period });
+  });
+
+  return merged;
 }
 
 function renderChart() {

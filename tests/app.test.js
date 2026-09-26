@@ -78,43 +78,75 @@ describe('averageTemperature', () => {
 });
 
 describe('historyFromMeasure', () => {
-  it('converts the getroommeasure body to sorted points', () => {
-    const body = { 1790315534: [20.4, 18], 1790313734: [20.5, 18] };
+  it('converts the chunked scale=max body into sorted points', () => {
+    const body = [
+      { beg_time: 1790313734, step_time: 600, value: [[20.5, 18], [20.4, 18]] },
+      { beg_time: 1790320934, step_time: 600, value: [[20.6, 18]] },
+    ];
     assert.deepEqual(historyFromMeasure(body), [
       { time: 1_790_313_734_000, temp: 20.5, setpoint: 18 },
-      { time: 1_790_315_534_000, temp: 20.4, setpoint: 18 },
+      { time: 1_790_313_734_000 + 600_000, temp: 20.4, setpoint: 18 },
+      { time: 1_790_320_934_000, temp: 20.6, setpoint: 18 },
+    ]);
+  });
+
+  it('merges duplicate timestamps across chunk boundaries', () => {
+    const body = [
+      { beg_time: 1790313734, step_time: 600, value: [[20.5, 18]] },
+      { beg_time: 1790313734, step_time: 600, value: [[20.4, 18]] },
+    ];
+    assert.deepEqual(historyFromMeasure(body), [
+      { time: 1_790_313_734_000, temp: 20.4, setpoint: 18 },
     ]);
   });
 });
 
 describe('heatingPeriods', () => {
-  const STEP = 30 * 60 * 1000;
+  const STEP = 10 * 60 * 1000;
   const t0 = 1_000_000_000_000;
   const point = (i, temp, setpoint) => ({ time: t0 + i * STEP, temp, setpoint });
 
-  it('marks a period where the setpoint matches the boost temperature', () => {
+  it('marks a short boost precisely', () => {
+    const points = [
+      point(0, 20, 18),
+      point(1, 21, 24),
+      point(2, 22, 20),
+    ];
+    assert.deepEqual(heatingPeriods(points, 24), [
+      { start: t0 + STEP, end: t0 + STEP },
+    ]);
+  });
+
+  it('marks several separate short boosts', () => {
+    const points = [
+      point(0, 20, 18),
+      point(1, 21, 24),
+      point(2, 22, 20),
+      point(6, 22, 24),
+      point(7, 22, 20),
+    ];
+    assert.deepEqual(heatingPeriods(points, 24), [
+      { start: t0 + STEP, end: t0 + STEP },
+      { start: t0 + 6 * STEP, end: t0 + 6 * STEP },
+    ]);
+  });
+
+  it('merges consecutive boosted samples into one period', () => {
     const points = [
       point(0, 20, 18),
       point(1, 21, 24),
       point(2, 23, 24),
-      point(3, 22, 18),
+      point(3, 22, 20),
     ];
     assert.deepEqual(heatingPeriods(points, 24), [
-      { start: t0 + STEP / 2, end: t0 + 2.5 * STEP },
-    ]);
-  });
-
-  it('merges consecutive hot samples into one period', () => {
-    const points = [point(0, 20, 18), point(1, 21, 24), point(2, 23, 24), point(3, 22, 24)];
-    assert.deepEqual(heatingPeriods(points, 24), [
-      { start: t0 + STEP / 2, end: t0 + 3.5 * STEP },
+      { start: t0 + STEP, end: t0 + 2 * STEP },
     ]);
   });
 
   it('tolerates a slightly lower setpoint while heating', () => {
     const points = [point(0, 20, 18), point(1, 21, 23.7), point(2, 22, 18)];
     assert.deepEqual(heatingPeriods(points, 24), [
-      { start: t0 + STEP / 2, end: t0 + 1.5 * STEP },
+      { start: t0 + STEP, end: t0 + STEP },
     ]);
   });
 

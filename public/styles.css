@@ -270,7 +270,6 @@ textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   fill: none;
   stroke: var(--muted);
   stroke-width: 1.5;
-  stroke-dasharray: 3 3;
 }
 
 .chart .chart-band { fill: var(--accent); opacity: 0.75; }

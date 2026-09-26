@@ -106,7 +106,7 @@ export async function homeStatus(accessToken, homeId) {
   return payload.body?.home ?? { rooms: [], modules: [] };
 }
 
-export async function getRoomMeasure(accessToken, { homeId, roomId, scale = '30min', begin, end }) {
+export async function getRoomMeasure(accessToken, { homeId, roomId, scale = 'max', begin, end }) {
   const payload = await call(
     '/api/getroommeasure',
     accessToken,
