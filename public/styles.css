@@ -8,6 +8,18 @@
   --accent-hi: #ff8438;
   --danger: #e2574c;
   --radius: 16px;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f2f4f7;
+    --surface: #fff;
+    --surface-hi: #e3e7ee;
+    --text: #12151a;
+    --muted: #626b7b;
+    color-scheme: light;
+  }
 }
 
 * { box-sizing: border-box; }
