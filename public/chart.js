@@ -14,7 +14,7 @@ function el(name, attrs = {}) {
 const fmtTime = (ts) =>
   new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-export function chartWindow(hours = 6, now = Date.now()) {
+export function chartWindow(hours = 6, now = Date.now(), updatedAt = now) {
   const from = now - hours * HOUR_MS;
   return {
     from,
@@ -22,7 +22,7 @@ export function chartWindow(hours = 6, now = Date.now()) {
     ticks: [
       [from, `-${hours} h`],
       [from + (hours / 2) * HOUR_MS, `-${hours / 2} h`],
-      [now, 'now'],
+      [now, fmtTime(updatedAt)],
     ],
   };
 }
@@ -34,10 +34,16 @@ export function chartWindow(hours = 6, now = Date.now()) {
  * points: [{ time: ms, temp: °C, setpoint: °C }]
  * heating: [{ start: ms, end: ms }]
  */
-export function renderTemperatureChart(points, heating = [], now = Date.now(), hours = 6) {
+export function renderTemperatureChart(
+  points,
+  heating = [],
+  now = Date.now(),
+  hours = 6,
+  updatedAt = now
+) {
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
-  const { from: t0, ticks } = chartWindow(hours, now);
+  const { from: t0, ticks } = chartWindow(hours, now, updatedAt);
 
   const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart', role: 'img' });
 
@@ -106,7 +112,7 @@ export function renderTemperatureChart(points, heating = [], now = Date.now(), h
     svg.appendChild(label);
   });
 
-  // X axis labels: window start, midpoint, now
+  // X axis labels: window start, midpoint, time of the last refresh
   ticks.forEach(([time, label]) => {
     const node = el('text', { x: x(time).toFixed(1), y: H - 4, 'text-anchor': 'middle', class: 'chart-label' });
     node.textContent = label;

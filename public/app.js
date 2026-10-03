@@ -24,8 +24,13 @@ let home = null;
 let status = null;
 let chartPoints = [];
 let chartHours = 6;
+let chartUpdatedAt = null;
 let pollTimer = null;
 let tickTimer = null;
+let refreshPromise = null;
+let lastRefreshAt = 0;
+
+const STALE_MS = 60_000;
 
 export function redirectUri() {
   const url = new URL(window.location.href);
@@ -115,19 +120,33 @@ export function averageTemperature(rooms) {
   return temps.reduce((a, b) => a + b, 0) / temps.length;
 }
 
+export function refreshAccessToken() {
+  // Netatmo rotates the refresh token on every use, so concurrent refreshes
+  // would invalidate each other. Share one in-flight request instead.
+  if (!refreshPromise) {
+    const client = store.getClient();
+    const tokens = store.getTokens();
+    refreshPromise = refreshTokens({
+      clientId: client.id,
+      clientSecret: client.secret,
+      refreshToken: tokens.refreshToken,
+    })
+      .then((fresh) => {
+        store.setTokens(fresh);
+        return fresh.accessToken;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
 async function validAccessToken() {
   const tokens = store.getTokens();
   if (!tokens) throw new NetatmoError('Nejsi přihlášený.', { status: 401 });
   if (tokens.expiresAt - REFRESH_MARGIN_MS > Date.now()) return tokens.accessToken;
-
-  const client = store.getClient();
-  const fresh = await refreshTokens({
-    clientId: client.id,
-    clientSecret: client.secret,
-    refreshToken: tokens.refreshToken,
-  });
-  store.setTokens(fresh);
-  return fresh.accessToken;
+  return refreshAccessToken();
 }
 
 async function withToken(fn) {
@@ -136,15 +155,7 @@ async function withToken(fn) {
     return await fn(token);
   } catch (error) {
     if (!(error instanceof NetatmoError) || !error.isAuthError) throw error;
-    const client = store.getClient();
-    const tokens = store.getTokens();
-    const fresh = await refreshTokens({
-      clientId: client.id,
-      clientSecret: client.secret,
-      refreshToken: tokens.refreshToken,
-    });
-    store.setTokens(fresh);
-    return fn(fresh.accessToken);
+    return fn(await refreshAccessToken());
   }
 }
 
@@ -200,6 +211,7 @@ function schedulePoll() {
 async function loadStatus() {
   try {
     status = await withToken((token) => homeStatus(token, home.id));
+    lastRefreshAt = Date.now();
     renderStatus();
     loadHistory().catch((e) => console.warn('chart', e));
   } catch (error) {
@@ -276,8 +288,12 @@ export function heatingPeriods(points, boostTemp) {
 function renderChart() {
   const config = store.getConfig();
   const periods = heatingPeriods(chartPoints, config.boostTemp);
+  const now = Date.now();
+  const updatedAt = chartUpdatedAt ?? lastRefreshAt ?? now;
   const node = el('chart');
-  node.replaceChildren(renderTemperatureChart(chartPoints, periods, Date.now(), chartHours));
+  node.replaceChildren(
+    renderTemperatureChart(chartPoints, periods, now, chartHours, updatedAt)
+  );
   document.querySelectorAll('.chart-range button').forEach((button) => {
     const active = Number(button.dataset.hours) === chartHours;
     button.classList.toggle('active', active);
@@ -310,6 +326,7 @@ async function loadHistory() {
   });
 
   chartPoints = Array.from(merged.values()).sort((a, b) => a.time - b.time);
+  chartUpdatedAt = Date.now();
   renderChart();
 }
 
@@ -524,6 +541,31 @@ async function handleRedirect(params) {
   return false;
 }
 
+async function refreshData() {
+  if (!home || document.hidden) return;
+  lastRefreshAt = Date.now();
+  try {
+    const config = store.getConfig();
+    const homes = homesWithHeating(await withToken(homesData));
+    const found = homes.find((h) => h.id === config.homeId);
+    if (found) home = found;
+    status = await withToken((token) => homeStatus(token, home.id));
+    renderStatus();
+    loadHistory().catch((e) => console.warn('chart', e));
+  } catch (error) {
+    reportError(error);
+  } finally {
+    schedulePoll();
+  }
+}
+
+function handleReturn() {
+  if (!home || document.hidden) return;
+  // Only reload after a real absence; tab switches shouldn't spam the API.
+  if (Date.now() - lastRefreshAt < STALE_MS) return;
+  refreshData();
+}
+
 function bindEvents() {
   el('setup-form').addEventListener('submit', startLogin);
   el('import-btn').addEventListener('click', applyImport);
@@ -553,8 +595,9 @@ function bindEvents() {
     showSetup();
   });
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && home) loadStatus();
+    if (!document.hidden) handleReturn();
   });
+  window.addEventListener('pageshow', handleReturn);
 }
 
 async function main() {

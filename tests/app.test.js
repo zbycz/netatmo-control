@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { after, beforeEach, describe, it } from 'node:test';
 import {
   averageTemperature,
   boostEndsAt,
@@ -7,8 +7,24 @@ import {
   heatingPeriods,
   historyFromMeasure,
   parseImport,
+  refreshAccessToken,
   selectedRoomIds,
 } from '../public/app.js';
+
+const realFetch = globalThis.fetch;
+after(() => {
+  globalThis.fetch = realFetch;
+});
+
+// app.js talks to localStorage through store.js, so a tiny stand-in is enough.
+const memory = new Map();
+globalThis.localStorage = {
+  getItem: (key) => (memory.has(key) ? memory.get(key) : null),
+  setItem: (key, value) => memory.set(key, String(value)),
+  removeItem: (key) => memory.delete(key),
+};
+
+beforeEach(() => memory.clear());
 
 describe('formatRemaining', () => {
   it('renders a m:ss countdown', () => {
@@ -191,5 +207,65 @@ describe('parseImport', () => {
     assert.throws(() => parseImport('nope'), /platný JSON/);
     assert.throws(() => parseImport('{}'), /client id nebo client secret/);
     assert.throws(() => parseImport('{"client":{"id":"a"}}'), /client id nebo client secret/);
+  });
+});
+
+describe('refreshAccessToken', () => {
+  function mockTokenEndpoint() {
+    const calls = [];
+    globalThis.fetch = async (url, options) => {
+      calls.push({ url, body: new URLSearchParams(options.body) });
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          access_token: `at-${calls.length}`,
+          refresh_token: `rt-${calls.length}`,
+          expires_in: 10800,
+        }),
+      };
+    };
+    return calls;
+  }
+
+  it('shares one in-flight refresh across concurrent callers', async () => {
+    localStorage.setItem('netatmo.client', JSON.stringify({ id: 'cid', secret: 'sec' }));
+    localStorage.setItem(
+      'netatmo.tokens',
+      JSON.stringify({ accessToken: 'old', refreshToken: 'rt-0', expiresAt: Date.now() - 1 })
+    );
+    const calls = mockTokenEndpoint();
+
+    const [a, b, c] = await Promise.all([
+      refreshAccessToken(),
+      refreshAccessToken(),
+      refreshAccessToken(),
+    ]);
+
+    assert.equal(calls.length, 1, 'the rotating refresh token must be used only once');
+    assert.equal(a, b);
+    assert.equal(b, c);
+    assert.equal(a, 'at-1');
+    assert.equal(calls[0].body.get('refresh_token'), 'rt-0');
+    assert.equal(
+      JSON.parse(localStorage.getItem('netatmo.tokens')).refreshToken,
+      'rt-1',
+      'the rotated refresh token must be persisted'
+    );
+  });
+
+  it('refreshes again on a later call', async () => {
+    localStorage.setItem('netatmo.client', JSON.stringify({ id: 'cid', secret: 'sec' }));
+    localStorage.setItem(
+      'netatmo.tokens',
+      JSON.stringify({ accessToken: 'old', refreshToken: 'rt-0', expiresAt: Date.now() - 1 })
+    );
+    const calls = mockTokenEndpoint();
+
+    await refreshAccessToken();
+    await refreshAccessToken();
+
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1].body.get('refresh_token'), 'rt-1');
   });
 });
